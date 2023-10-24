@@ -1,344 +1,376 @@
 ###***********************Data Analysis_ indoor dining & preemption**************************
+{
 
-#*Descriptive and regression analysis 
-rm(list=ls())
-#Import all libraries 
-library(ggplot2)
-library(tidyverse) 
-library(hrbrthemes)
-library(zoo)
-library(lubridate)
-library(data.table)
-library(ggpubr)
-library(stargazer)
-library(arm)
-library(sandwich)
-library(MASS)
-library(lmtest)
-library(emmeans)
-library(inauguration)
-library(foreign)
-library(tidycensus)
-library(readxl)
-library(scales)
-library(fwildclusterboot)
-library(broom)
+# Setup -------------------------------------------------------------------
 
-#import data files
-load("data/daily_count.Rdata")
-load("data/event_model1.Rdata")
-load("data/roll_avg.Rdata")
-load("data/roll_avg_death.Rdata")
-load("data/daily_count_deaths.Rdata")
-load("data/county_cases_sens2.Rdata")
-load("data/daily_count_2a.Rdata")
-load("data/daily_count_deaths.Rdata")
-load("data/sens2_all.Rdata")
+  
+  {
+    rm(list=ls())
+    #Import all libraries 
+    library(ggplot2)
+    library(tidyverse) 
+    library(hrbrthemes)
+    library(zoo)
+    library(lubridate)
+    library(data.table)
+    library(ggpubr)
+    library(stargazer)
+    library(arm)
+    library(sandwich)
+    library(MASS)
+    library(lmtest)
+    library(emmeans)
+    # library(inauguration)
+    library(foreign)
+    library(tidycensus)
+    library(readxl)
+    library(scales)
+    library(fwildclusterboot)
+    library(broom)
+  }
+  
+  {
+    #import data files
+    load("data/daily_count.Rdata")
+    load("data/event_model1.Rdata")
+    load("data/roll_avg.Rdata")
+    load("data/roll_avg_death.Rdata")
+    # load("data/daily_count_deaths.Rdata")
+    # load("data/county_cases_sens2.Rdata")
+    load("data/daily_count_2a.Rdata")
+    load("data/daily_count_deaths.Rdata")
+    load("data/sens2_all.Rdata")
+  }
+  
+  cities<-c(42101,18097,6075, 55079, 4013, 48453, 48113, 48201,  48029, 13121,45019)
+  
+  # export county_cases2 for stata (for marginal mean estimates)
+  write.dta(county_cases2,"county_cases2.dta")  
+}
+{
 
-cities<-c(42101,18097,6075, 55079, 4013, 48453, 48113, 48201,  48029, 13121,45019)
+# Appendix Figure A1 ------------------------------------------------------
 
-# export county_cases2 for stata (for marginal mean estimates)
-write.dta(county_cases2,"county_cases2.dta")
-####################################################
-#Appendix Figure A1
-####################################################
-#figure of all cities w/ opening dates
-figure1_data<-fread("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv") %>% 
-  dplyr::select(UID, FIPS, Admin2,'3/1/20':'11/1/20')%>%
-  pivot_longer(!c(UID, FIPS, Admin2), names_to="date", values_to="cases")%>%
-  filter(FIPS %in% cities)%>%
-  mutate(date=as.Date(date, "%m/%d/%y"))%>%
- mutate(treat1=case_when(Admin2%in% c("Philadelphia", "Marion", "San Francisco", "Milwaukee")~1, 
-                   Admin2%in% c("Maricopa","Travis", "Bexar", "Dallas",	
-                                "Harris", "Fulton", "Charleston")~0))%>%
-  mutate(cities=factor(case_when(FIPS==42101~"Philadelphia",
-                                    FIPS==18097~"Indianapolis", 
-                                    FIPS==6075~"San Francisco", 
-                                    FIPS==55079~"Milwaukee", 
-                                    FIPS==4013~"Pheonix", 
-                                    FIPS==48453~"Austin", 
-                                    FIPS==48113~"Dallas", 
-                                    FIPS==48201~"Houston", 
-                                    FIPS==48029~ "San Antonio", 
-                                    FIPS==13121~"Atlanta", 
-                                    FIPS==45019~"Charleston"), 
-                          levels=c("Indianapolis", "Milwaukee", "Philadelphia", "San Francisco",
-                                   "Atlanta", "Austin", "Charleston", "Dallas", 
-                                   "Houston", "Pheonix", "San Antonio")))%>%
-  group_by(cities)%>%
-  mutate(cases2=rollmean(cases, k=7, align="center",na.pad=T))%>%
-  mutate(cases2=cases2-lag(cases2))
+  #figure of all cities w/ opening dates
+  figure1_data<-fread("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv") %>% 
+    dplyr::select(UID, FIPS, Admin2,'3/1/20':'11/1/20')%>%
+    pivot_longer(!c(UID, FIPS, Admin2), names_to="date", values_to="cases")%>%
+    filter(FIPS %in% cities)%>%
+    mutate(date=as.Date(date, "%m/%d/%y"))%>%
+    mutate(treat1=case_when(Admin2%in% c("Philadelphia", "Marion", "San Francisco", "Milwaukee")~1, 
+                            Admin2%in% c("Maricopa","Travis", "Bexar", "Dallas",	
+                                         "Harris", "Fulton", "Charleston")~0))%>%
+    mutate(cities=factor(case_when(FIPS==42101~"Philadelphia",
+                                   FIPS==18097~"Indianapolis", 
+                                   FIPS==6075~"San Francisco", 
+                                   FIPS==55079~"Milwaukee", 
+                                   FIPS==4013~"Pheonix", 
+                                   FIPS==48453~"Austin", 
+                                   FIPS==48113~"Dallas", 
+                                   FIPS==48201~"Houston", 
+                                   FIPS==48029~ "San Antonio", 
+                                   FIPS==13121~"Atlanta", 
+                                   FIPS==45019~"Charleston"), 
+                         levels=c("Indianapolis", "Milwaukee", "Philadelphia", "San Francisco",
+                                  "Atlanta", "Austin", "Charleston", "Dallas", 
+                                  "Houston", "Pheonix", "San Antonio")))%>%
+    group_by(cities)%>%
+    mutate(cases2=rollmean(cases, k=7, align="center",na.pad=T))%>%
+    mutate(cases2=cases2-lag(cases2))
+  
+  #code for horizontal lines 
+  annotation1<-fread("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv") %>% 
+    dplyr::select(Admin2, FIPS)%>%
+    filter(FIPS %in% cities)%>%
+    mutate(treat1=case_when(Admin2%in% c("Philadelphia", "Marion", "San Francisco", "Milwaukee")~1, 
+                            Admin2%in% c("Maricopa","Travis", "Bexar", "Dallas",	
+                                         "Harris", "Fulton", "Charleston")~0))%>%
+    mutate(cities=factor(case_when(FIPS==42101~"Philadelphia",
+                                   FIPS==18097~"Indianapolis", 
+                                   FIPS==6075~"San Francisco", 
+                                   FIPS==55079~"Milwaukee", 
+                                   FIPS==4013~"Pheonix", 
+                                   FIPS==48453~"Austin", 
+                                   FIPS==48113~"Dallas", 
+                                   FIPS==48201~"Houston", 
+                                   FIPS==48029~ "San Antonio", 
+                                   FIPS==13121~"Atlanta", 
+                                   FIPS==45019~"Charleston"), 
+                         levels=c("Indianapolis", "Milwaukee", "Philadelphia", "San Francisco",
+                                  "Atlanta", "Austin", "Charleston", "Dallas", 
+                                  "Houston", "Pheonix", "San Antonio")))%>%
+    mutate(state_allowed=case_when(
+      Admin2=="Philadelphia"~"2020-06-26",
+      Admin2=="Marion"~"2020-05-11",
+      Admin2=="San Francisco"~"2020-08-31", 
+      Admin2=="Milwaukee"~"2020-05-14", 
+      Admin2 %in% c("Travis", "Dallas", "Harris", "Bexar")~ "2020-05-01",
+      Admin2=="Maricopa" ~"2020-05-11",
+      Admin2=="Fulton"~ "2020-04-27",
+      Admin2=="Charleston"~"2020-05-11"),
+      state_allowed=as.Date(state_allowed, "%Y-%m-%d"), 
+      city_opened=case_when( 
+        Admin2=="Philadelphia"~"2020-09-08",
+        Admin2=="Milwaukee"~"2020-06-05", 
+        Admin2=="San Francisco"~"2020-09-30", 
+        Admin2=="Marion"~"2020-06-01"), 
+      city_opened=as.Date(city_opened, "%Y-%m-%d"), 
+      dining_closed=case_when(
+        Admin2=="Philadelphia"~"2020-03-23",
+        Admin2=="Marion"~"2020-03-23",
+        Admin2=="San Francisco"~"2020-03-17", 
+        Admin2=="Milwaukee"~"2020-03-26", 
+        Admin2=="Maricopa"~"2020-03-31", 
+        Admin2=="Travis"~"2020-03-24", 
+        Admin2=="Dallas"~"2020-03-22",
+        Admin2=="Harris"~"2020-03-24", 
+        Admin2=="Bexar"~"2020-03-24", 
+        Admin2=="Fulton"~ "2020-03-24",
+        Admin2=="Charleston"~"2020-03-27"), 
+      dining_closed=as.Date(dining_closed, "%Y-%m-%d"))
+  
+  
+  pdf(file="results/figure_1a.pdf")
+  
+  figure1a<-figure1_data%>%
+    ggplot(aes(x=date, y=cases2))+
+    geom_line()+
+    scale_linetype_manual(values=c(1, 2, 3))+
+    labs(title = "Rolling 7-day average new COVID-19 cases", 
+         y = "New Cases",
+         x = "Date") +
+    scale_x_date(breaks="1 month", date_labels = "%b", limits=as.Date(c('2020-03-01', '2020-10-01')))+
+    facet_wrap(~ cities) +
+    theme(legend.position = "bottom") +
+    theme_bw()+ theme(plot.title = element_text(size=10))+
+    geom_vline(aes(xintercept=state_allowed, color="state_allowed"), annotation1, color="black")+
+    geom_vline(aes(xintercept=city_opened, color="city_opened"), annotation1, color="red")+
+    geom_vline(aes(xintercept=dining_closed, color="dining_closed"), annotation1, color="grey", lty=1)
+  
+  figure1_data %>% fwrite("clean/figure1_data.csv")
+  figure1a
+  dev.off()
+  
+  
+  plots = replicate(8, qplot(1,1), simplify=FALSE)
+  library(gridExtra)
+  p <- do.call(marrangeGrob, list(grobs=plots,ncol=1,nrow=1))
+  
+  ggsave("multipage.pdf", p, width=11, height=8.5)
+  
+}
 
-#code for horizontal lines 
-annotation1<-fread("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv") %>% 
-  dplyr::select(Admin2, FIPS)%>%
- filter(FIPS %in% cities)%>%
-  mutate(treat1=case_when(Admin2%in% c("Philadelphia", "Marion", "San Francisco", "Milwaukee")~1, 
-                          Admin2%in% c("Maricopa","Travis", "Bexar", "Dallas",	
-                                       "Harris", "Fulton", "Charleston")~0))%>%
-  mutate(cities=factor(case_when(FIPS==42101~"Philadelphia",
-                              FIPS==18097~"Indianapolis", 
-                              FIPS==6075~"San Francisco", 
-                              FIPS==55079~"Milwaukee", 
-                              FIPS==4013~"Pheonix", 
-                              FIPS==48453~"Austin", 
-                              FIPS==48113~"Dallas", 
-                              FIPS==48201~"Houston", 
-                              FIPS==48029~ "San Antonio", 
-                              FIPS==13121~"Atlanta", 
-                              FIPS==45019~"Charleston"), 
-                       levels=c("Indianapolis", "Milwaukee", "Philadelphia", "San Francisco",
-                                "Atlanta", "Austin", "Charleston", "Dallas", 
-                                "Houston", "Pheonix", "San Antonio")))%>%
-  mutate(state_allowed=case_when(
-                      Admin2=="Philadelphia"~"2020-06-26",
-                      Admin2=="Marion"~"2020-05-11",
-                      Admin2=="San Francisco"~"2020-08-31", 
-                      Admin2=="Milwaukee"~"2020-05-14", 
-                      Admin2 %in% c("Travis", "Dallas", "Harris", "Bexar")~ "2020-05-01",
-                      Admin2=="Maricopa" ~"2020-05-11",
-                      Admin2=="Fulton"~ "2020-04-27",
-                      Admin2=="Charleston"~"2020-05-11"),
-state_allowed=as.Date(state_allowed, "%Y-%m-%d"), 
-                      city_opened=case_when( 
-                        Admin2=="Philadelphia"~"2020-09-08",
-                        Admin2=="Milwaukee"~"2020-06-05", 
-                        Admin2=="San Francisco"~"2020-09-30", 
-                        Admin2=="Marion"~"2020-06-01"), 
-city_opened=as.Date(city_opened, "%Y-%m-%d"), 
-    dining_closed=case_when(
-      Admin2=="Philadelphia"~"2020-03-23",
-      Admin2=="Marion"~"2020-03-23",
-      Admin2=="San Francisco"~"2020-03-17", 
-      Admin2=="Milwaukee"~"2020-03-26", 
-      Admin2=="Maricopa"~"2020-03-31", 
-      Admin2=="Travis"~"2020-03-24", 
-      Admin2=="Dallas"~"2020-03-22",
-      Admin2=="Harris"~"2020-03-24", 
-      Admin2=="Bexar"~"2020-03-24", 
-      Admin2=="Fulton"~ "2020-03-24",
-      Admin2=="Charleston"~"2020-03-27"), 
-dining_closed=as.Date(dining_closed, "%Y-%m-%d"))
+{ # Figure 2:Parallel trends assumption  ------------------------------------
+  
+  
+  #find means by treat and week
+  means <- roll_avg %>% 
+    filter(time>=-7)%>%
+    group_by(treat1, time) %>% 
+    summarise(casemean = mean(daily_count), 
+              mean7da = mean(case_07da), 
+              ratemean=mean(caserate_07da),
+              wt_meanrate=weighted.mean(caserate_07da, pop),
+              logcasemean=log(casemean), 
+              logratemean=log(ratemean), 
+              wt_logratemean=log(wt_meanrate))%>%
+    mutate(treat=factor(treat1))
+  means
+  
+  pdf(file="results/figure_2.pdf")
+  rate_mean1 <- ggplot(data=means, aes(x=time, y=ratemean, group=treat)) +
+    geom_line(aes(linetype=treat))+
+    geom_vline(xintercept = 14)+
+    labs(group="Treat v Comparison",
+         y = "Log of new case rate per 100,000",
+         x = "Days Since Reopening (comparison)/Delayed Reopening (treatment)") +
+    scale_y_continuous(trans="log", breaks=pretty_breaks(n=5))+
+    #  coord_cartesian(ylim = c(0, 10))+ 
+    theme(legend.position="bottom") + theme_bw() +
+    scale_linetype_discrete(name="Treat v Comparison", labels=c("Comparison", "Treatment"))
+  # scale_color_manual(values=c("#5445b1", "#cd3341"))
+  
+  rate_mean1
+  dev.off()
+  
+  
+}
 
+{ # APPENDIX Figure D4 ------------------------------------------------------
+  #APPENDIX Figure D4
+  #final figure for deaths 
+  means_death <- roll_avg_death %>% 
+    group_by(treat1, time) %>% 
+    summarise(deathmean = mean(daily_deaths), 
+              mean7da = mean(deaths_07da), 
+              wt_ratemean=weighted.mean(deathrate_07da, pop),
+              ratemean=mean(deathrate_07da), 
+              logdeathmean=log(mean7da),
+              logratemean=log(ratemean),
+              wt_logdeathmean=log(wt_ratemean))%>%
+    mutate(lograte=log(1+ratemean))
+  
+  
+  pdf(file="results/figure_2b_appendix.pdf")
+  rate_mean1_death <- ggplot(data=means_death, aes(x=time, y=ratemean, color=factor(treat1, labels = c("Comparison", "Treatment")))) +
+    geom_line(size=1.5)+
+    geom_vline(xintercept = 35)+
+    labs(color="Treat v Comparison",
+         y = "Log of New Death Rate per 100,000",
+         x = "Days Since Reopening (comparison)/Delayed Reopening (treatment)") +
+    theme(legend.position="bottom") +
+    scale_y_continuous(trans="log", breaks=pretty_breaks(n=5))+
+    #using colors from inauguration_2021
+    scale_color_manual(values=c("#5445b1", "#cd3341"))+
+    coord_cartesian(ylim = c(0.1, 0.50))
+  
+  
+  
+  rate_mean1_death
+  
+  dev.off()
+  
+}
 
-pdf(file="results/figure_1a.pdf")
+{ # Parallel trends analysis  -----------------------------------------------
+  #Parallel trends analysis 
+  #limit data to pre-period
+  
+  pre_period<-county_cases2%>%
+    filter(time<1 & time>=-7)
+  
+  summary(pretrend<-lm(daily_count ~treat1*time,  
+                       data = pre_period))
+  
+  #w/ offset
+  pretrend<-lm(daily_count ~treat1*time + offset(log(pop/100000)),  
+               data = pre_period)
+  
+  #repeated w/ negative binomial
+  summary(pretrend<-glm.nb(daily_count ~treat1*time + offset(log(pop/100000)), 
+                           data = pre_period))
+  exp(coefci(pretrend, level=0.95))
+  rci_mod_nbpre<-exp(coefci(pretrend, vcov=vcovCL(pretrend,type="HC1",cluster=~FIPS+Province_State)))
+  rci_mod_nbpre
+  #repeated w/ deaths 
+  pre_period_d<-county_deaths2%>%
+    filter(time<35)
+  
+  summary(pretrend_d<-lm(daily_deaths ~treat1*time,  data = pre_period_d))
+  
+  #w/ offset
+  summary(pretrend_d<-lm(daily_deaths ~treat1*time + offset(log(pop/100000)), 
+                         data = pre_period_d))
+  
+  #w/ negative binomial
+  summary(pretrend_d<-glm.nb(daily_deaths ~treat1*time + offset(log(pop/100000)),  data = pre_period_d))
+  rse_pretrend_d<-exp(coeftest(pretrend_d, vcov=vcovCL(pretrend_d,type="HC1",cluster=~FIPS + Province_State)))
+  rci_mod_nbpre_d<-exp(coefci(pretrend_d, vcov=vcovCL(pretrend_d,type="HC1",cluster=~FIPS+Province_State)))
+  rse_pretrend_d
+  rci_mod_nbpre_d
+  
+  
+}
 
-figure1a<-figure1_data%>%
-  ggplot(aes(x=date, y=cases2))+
-  geom_line()+
-  scale_linetype_manual(values=c(1, 2, 3))+
-  labs(title = "Rolling 7-day average new COVID-19 cases", 
-       y = "New Cases",
-       x = "Date") +
-  scale_x_date(breaks="1 month", date_labels = "%b", limits=as.Date(c('2020-03-01', '2020-10-01')))+
-  facet_wrap(~ cities) +
-  theme(legend.position = "bottom") +
-  theme_bw()+ theme(plot.title = element_text(size=10))+
-  geom_vline(aes(xintercept=state_allowed, color="state_allowed"), annotation1, color="black")+
-  geom_vline(aes(xintercept=city_opened, color="city_opened"), annotation1, color="red")+
-  geom_vline(aes(xintercept=dining_closed, color="dining_closed"), annotation1, color="grey", lty=1)
+{ # Modeling ----------------------------------------------------------
+
+  
+  { ## Model building ----------------------------------------------------------
+
+    
+    #start w/ just pre/post
+    county_cases2$pre_post<-as.factor(county_cases2$pre_post)
+    
+    #in earlier model building we found Neg binomial a better fit for the model, so using this for model building
+    summary(mod_nb1 <- glm.nb(daily_count ~pre_post,  data = county_cases2))
+    stargazer(mod_nb1, apply.coef = exp, type='text')
+    AIC(mod_nb1)
+    BIC(mod_nb1)
+    rse_mod_nb1<-exp(coeftest(mod_nb1, vcov=vcovCL(mod_nb1,type="HC1",cluster=~FIPS + Province_State)))
+    rci_mod_nb1<-exp(coefci(mod_nb1, vcov=vcovCL(mod_nb1,type="HC1",cluster=~FIPS+Province_State)))
+    rse_mod_nb1
+    rci_mod_nb1
+    
+    #add offset (could also consider test offset)
+    ##we add the per 100000 to make a per 100,000 rate offset
+    summary(mod_nb1off<-glm.nb(daily_count~pre_post + offset(log(pop/100000)), data=county_cases2))
+    stargazer(mod_nb1off, apply.coef = exp, type='text')
+    AIC(mod_nb1off)
+    BIC(mod_nb1off)
+    ##add heteroskedasticity robust standard errors and cluster at city 
+    #controls for mild violation of distribution assumption that var=mean
+    # this is equivalent to vce cluster in stata, per https://rmcd1024.github.io/R_and_Stata/stata_and_R_clustering.pdf
+    rse_mod_nb1off<-exp(coeftest(mod_nb1off, vcov=vcovCL(mod_nb1off,type="HC1",cluster=~FIPS+Province_State)))
+    rci_mod_nb1off<-exp(coefci(mod_nb1off, vcov=vcovCL(mod_nb1off,type="HC1",cluster=~FIPS+Province_State)))
+    rse_mod_nb1off
+    rci_mod_nb1off
+    #offset better fit for model- include from here on. 
+    
+    #add treat 
+    summary(mod_nb2off<-glm.nb(daily_count~pre_post +treat1+ offset(log(pop/100000)), data=county_cases2))
+    stargazer(mod_nb2off, apply.coef = exp, type='text')
+    rse_mod_nb2off<-exp(coeftest(mod_nb2off, vcov=vcovCL(mod_nb2off,type="HC1",cluster=~FIPS+Province_State)))
+    rci_mod_nb2off<-exp(coefci(mod_nb2off, vcov=vcovCL(mod_nb2off,type="HC1",cluster=~FIPS+Province_State)))
+    rse_mod_nb2off
+    rci_mod_nb2off
+    
+  }
+  
+  { ## Final unadjusted model --------------------------------------------------
+    summary(mod_nb3<-glm.nb(daily_count~treat1*pre_post+ offset(log(pop/100000)), data=county_cases2))
+    stargazer(mod_nb3, apply.coef = exp, type='text')
+    rse_mod_nb3<-exp(coeftest(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
+    rci_mod_nb3<-exp(coefci(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
+    rse_mod_nb3
+    rci_mod_nb3
+    
+    ########add other policies########
+    #stay at home order
+    summary(mod_nb3a<-glm.nb(daily_count~treat1*pre_post + at_home + offset(log(pop/100000)), data=county_cases2))
+    stargazer(mod_nb3a, apply.coef = exp, type='text')
+    anova(mod_nb3, mod_nb3a,  test="Chisq")
+    rse_mod_nb3f<-exp(coeftest(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
+    rci_mod_nb3<-exp(coefci(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
+    rse_mod_nb3
+    rci_mod_nb3
+    
+    #mask mandate
+    summary(mod_nb3b<-glm.nb(daily_count~treat1*pre_post + at_home + mask_mandate + offset(log(pop/100000)), data=county_cases2))
+    stargazer(mod_nb3b, apply.coef = exp, type='text')
+    anova(mod_nb3a, mod_nb3b,  test="Chisq")
+    rse_mod_nb3b<-exp(coeftest(mod_nb3b, vcov=vcovCL(mod_nb3b,type="HC1",cluster=~FIPS+Province_State)))
+    rci_mod_nb3b<-exp(coefci(mod_nb3b, vcov=vcovCL(mod_nb3b,type="HC1",cluster=~FIPS+Province_State)))
+    rse_mod_nb3b
+    rci_mod_nb3b
+  }
+ 
+  { # Final Adjusted Model  ---------------------------------------------------
+    #add eviction ban
+    summary(mod_nb3c<-glm.nb(daily_count~treat1*pre_post + at_home + mask_mandate + evict_end + offset(log(pop/100000)),  data=county_cases2))
+    stargazer(mod_nb3c, apply.coef = exp, type='text')
+    anova(mod_nb3b, mod_nb3c,  test="Chisq")
+    rse_mod_nb3c<-exp(coeftest(mod_nb3c, vcov=vcovCL(mod_nb3c,type="HC1",cluster=~FIPS+Province_State)))
+    rci_mod_nb3c<-exp(coefci(mod_nb3c, vcov=vcovCL(mod_nb3c,type="HC1",cluster=~FIPS+Province_State)))
+    rse_mod_nb3c
+    rci_mod_nb3c
+    
+    summary(mod_nb3c<-glm.nb(daily_deaths~treat1*pre_post + at_home + mask_mandate + evict_end + offset(log(pop/100000)),  data=county_deaths2b))
+    
+    
+    #compare models 
+    models <- list(mod_nb1, mod_nb1off, mod_nb2off, mod_nb3)
+    models1<-list(mod_nb3a, mod_nb3b, mod_nb3c)
+    
+    stargazer(models, apply.coef=exp, type = "text", ci = TRUE, title="Base Models", out="results/table1.txt")
+    stargazer(models1, apply.coef=exp, type="text", ci = TRUE, title="Models w/ NPIs & FE", out="results/table1a.txt")
+    
+    
+  }
+   
+}
   
 
-figure1a
-dev.off()
-
-
-plots = replicate(8, qplot(1,1), simplify=FALSE)
-library(gridExtra)
-p <- do.call(marrangeGrob, list(grobs=plots,ncol=1,nrow=1))
-
-ggsave("multipage.pdf", p, width=11, height=8.5)
-
-####################################################
-#Figure 2:Parallel trends assumption 
-####################################################
-
-#find means by treat and week
-means <- roll_avg %>% 
-  filter(time>=-7)%>%
-  group_by(treat1, time) %>% 
-  summarise(casemean = mean(daily_count), 
-            mean7da = mean(case_07da), 
-            ratemean=mean(caserate_07da),
-            wt_meanrate=weighted.mean(caserate_07da, pop),
-            logcasemean=log(casemean), 
-            logratemean=log(ratemean), 
-            wt_logratemean=log(wt_meanrate))%>%
-  mutate(treat=factor(treat1))
-means
-
-pdf(file="results/figure_2.pdf")
-rate_mean1 <- ggplot(data=means, aes(x=time, y=ratemean, group=treat)) +
-  geom_line(aes(linetype=treat))+
-  geom_vline(xintercept = 14)+
-  labs(group="Treat v Comparison",
-       y = "Log of new case rate per 100,000",
-       x = "Days Since Reopening (comparison)/Delayed Reopening (treatment)") +
-  scale_y_continuous(trans="log", breaks=pretty_breaks(n=5))+
-#  coord_cartesian(ylim = c(0, 10))+ 
-  theme(legend.position="bottom") + theme_bw() +
-  scale_linetype_discrete(name="Treat v Comparison", labels=c("Comparison", "Treatment"))
- # scale_color_manual(values=c("#5445b1", "#cd3341"))
-
-rate_mean1
-dev.off()
-
-###############################################################################
-#APPENDIX Figure D4
-#final figure for deaths 
-means_death <- roll_avg_death %>% 
-  group_by(treat1, time) %>% 
-  summarise(deathmean = mean(daily_deaths), 
-            mean7da = mean(deaths_07da), 
-            wt_ratemean=weighted.mean(deathrate_07da, pop),
-            ratemean=mean(deathrate_07da), 
-            logdeathmean=log(mean7da),
-            logratemean=log(ratemean),
-            wt_logdeathmean=log(wt_ratemean))%>%
-  mutate(lograte=log(1+ratemean))
-
-
-pdf(file="results/figure_2b_appendix.pdf")
-rate_mean1_death <- ggplot(data=means_death, aes(x=time, y=ratemean, color=factor(treat1, labels = c("Comparison", "Treatment")))) +
-  geom_line(size=1.5)+
-  geom_vline(xintercept = 35)+
-  labs(color="Treat v Comparison",
-       y = "Log of New Death Rate per 100,000",
-       x = "Days Since Reopening (comparison)/Delayed Reopening (treatment)") +
-  theme(legend.position="bottom") +
-  scale_y_continuous(trans="log", breaks=pretty_breaks(n=5))+
-  #using colors from inauguration_2021
-  scale_color_manual(values=c("#5445b1", "#cd3341"))+
-  coord_cartesian(ylim = c(0.1, 0.50))
-  
-
-
-rate_mean1_death
-
-dev.off()
-###############################################################################
-#Parallel trends analysis 
-#limit data to pre-period
-
-pre_period<-county_cases2%>%
-  filter(time<1 & time>=-7)
-
-summary(pretrend<-lm(daily_count ~treat1*time,  data = pre_period))
-
-#w/ offset
-pretrend<-lm(daily_count ~treat1*time + offset(log(pop/100000)),  data = pre_period)
-
-#repeated w/ negative binomial
-summary(pretrend<-glm.nb(daily_count ~treat1*time + offset(log(pop/100000)),  data = pre_period))
-exp(coefci(pretrend, level=0.95))
-rci_mod_nbpre<-exp(coefci(pretrend, vcov=vcovCL(pretrend,type="HC1",cluster=~FIPS+Province_State)))
-rci_mod_nbpre
-#repeated w/ deaths 
-pre_period_d<-county_deaths2%>%
-  filter(time<35)
-
-summary(pretrend_d<-lm(daily_deaths ~treat1*time,  data = pre_period_d))
-
-#w/ offset
-summary(pretrend_d<-lm(daily_deaths ~treat1*time + offset(log(pop/100000)),  data = pre_period_d))
-
-#w/ negative binomial
-summary(pretrend_d<-glm.nb(daily_deaths ~treat1*time + offset(log(pop/100000)),  data = pre_period_d))
-rse_pretrend_d<-exp(coeftest(pretrend_d, vcov=vcovCL(pretrend_d,type="HC1",cluster=~FIPS + Province_State)))
-rci_mod_nbpre_d<-exp(coefci(pretrend_d, vcov=vcovCL(pretrend_d,type="HC1",cluster=~FIPS+Province_State)))
-rse_pretrend_d
-rci_mod_nbpre_d
-
-##############################################################################
-#Model Building 
-#############################################################################
-
-#start w/ just pre/post
-county_cases2$pre_post<-as.factor(county_cases2$pre_post)
-
-#in earlier model building we found Neg binomial a better fit for the model, so using this for model building
-summary(mod_nb1 <- glm.nb(daily_count ~pre_post,  data = county_cases2))
-stargazer(mod_nb1, apply.coef = exp, type='text')
-AIC(mod_nb1)
-BIC(mod_nb1)
-rse_mod_nb1<-exp(coeftest(mod_nb1, vcov=vcovCL(mod_nb1,type="HC1",cluster=~FIPS + Province_State)))
-rci_mod_nb1<-exp(coefci(mod_nb1, vcov=vcovCL(mod_nb1,type="HC1",cluster=~FIPS+Province_State)))
-rse_mod_nb1
-rci_mod_nb1
-
-#add offset (could also consider test offset)
-##we add the per 100000 to make a per 100,000 rate offset
-summary(mod_nb1off<-glm.nb(daily_count~pre_post + offset(log(pop/100000)), data=county_cases2))
-stargazer(mod_nb1off, apply.coef = exp, type='text')
-AIC(mod_nb1off)
-BIC(mod_nb1off)
-##add heteroskedasticity robust standard errors and cluster at city 
-#controls for mild violation of distribution assumption that var=mean
-# this is equivalent to vce cluster in stata, per https://rmcd1024.github.io/R_and_Stata/stata_and_R_clustering.pdf
-rse_mod_nb1off<-exp(coeftest(mod_nb1off, vcov=vcovCL(mod_nb1off,type="HC1",cluster=~FIPS+Province_State)))
-rci_mod_nb1off<-exp(coefci(mod_nb1off, vcov=vcovCL(mod_nb1off,type="HC1",cluster=~FIPS+Province_State)))
-rse_mod_nb1off
-rci_mod_nb1off
-#offset better fit for model- include from here on. 
-
-#add treat 
-summary(mod_nb2off<-glm.nb(daily_count~pre_post +treat1+ offset(log(pop/100000)), data=county_cases2))
-stargazer(mod_nb2off, apply.coef = exp, type='text')
-rse_mod_nb2off<-exp(coeftest(mod_nb2off, vcov=vcovCL(mod_nb2off,type="HC1",cluster=~FIPS+Province_State)))
-rci_mod_nb2off<-exp(coefci(mod_nb2off, vcov=vcovCL(mod_nb2off,type="HC1",cluster=~FIPS+Province_State)))
-rse_mod_nb2off
-rci_mod_nb2off
-
-################################
-#Final unadjusted model 
-##############################
-summary(mod_nb3<-glm.nb(daily_count~treat1*pre_post+ offset(log(pop/100000)), data=county_cases2))
-stargazer(mod_nb3, apply.coef = exp, type='text')
-rse_mod_nb3<-exp(coeftest(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
-rci_mod_nb3<-exp(coefci(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
-rse_mod_nb3
-rci_mod_nb3
-
-########add other policies########
-#stay at home order
-summary(mod_nb3a<-glm.nb(daily_count~treat1*pre_post + at_home + offset(log(pop/100000)), data=county_cases2))
-stargazer(mod_nb3a, apply.coef = exp, type='text')
-anova(mod_nb3, mod_nb3a,  test="Chisq")
-rse_mod_nb3f<-exp(coeftest(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
-rci_mod_nb3<-exp(coefci(mod_nb3, vcov=vcovCL(mod_nb3,type="HC1",cluster=~FIPS+Province_State)))
-rse_mod_nb3
-rci_mod_nb3
-
-#mask mandate
-summary(mod_nb3b<-glm.nb(daily_count~treat1*pre_post + at_home + mask_mandate + offset(log(pop/100000)), data=county_cases2))
-stargazer(mod_nb3b, apply.coef = exp, type='text')
-anova(mod_nb3a, mod_nb3b,  test="Chisq")
-rse_mod_nb3b<-exp(coeftest(mod_nb3b, vcov=vcovCL(mod_nb3b,type="HC1",cluster=~FIPS+Province_State)))
-rci_mod_nb3b<-exp(coefci(mod_nb3b, vcov=vcovCL(mod_nb3b,type="HC1",cluster=~FIPS+Province_State)))
-rse_mod_nb3b
-rci_mod_nb3b
-##########################
-#Final Adjusted MOdel 
-#########################
-#add eviction ban
-summary(mod_nb3c<-glm.nb(daily_count~treat1*pre_post + at_home + mask_mandate + evict_end + offset(log(pop/100000)),  data=county_cases2))
-stargazer(mod_nb3c, apply.coef = exp, type='text')
-anova(mod_nb3b, mod_nb3c,  test="Chisq")
-rse_mod_nb3c<-exp(coeftest(mod_nb3c, vcov=vcovCL(mod_nb3c,type="HC1",cluster=~FIPS+Province_State)))
-rci_mod_nb3c<-exp(coefci(mod_nb3c, vcov=vcovCL(mod_nb3c,type="HC1",cluster=~FIPS+Province_State)))
-rse_mod_nb3c
-rci_mod_nb3c
-
-summary(mod_nb3c<-glm.nb(daily_deaths~treat1*pre_post + at_home + mask_mandate + evict_end + offset(log(pop/100000)),  data=county_deaths2b))
-
-
-#compare models 
-models <- list(mod_nb1, mod_nb1off, mod_nb2off, mod_nb3)
-models1<-list(mod_nb3a, mod_nb3b, mod_nb3c)
-
-stargazer(models, apply.coef=exp, type = "text", ci = TRUE, title="Base Models", out="results/table1.txt")
-stargazer(models1, apply.coef=exp, type="text", ci = TRUE, title="Models w/ NPIs & FE", out="results/table1a.txt")
-
+ 
 ##############################################################################################################################################
 #Rerun models w/ linear regression (basic did assumption)
 #unadjusted
